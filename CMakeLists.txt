@@ -22,4 +22,3 @@ project(${CMAKE_PROJECT_NAME})
 
 # Include external project file
 include("mx-generated.cmake")
-

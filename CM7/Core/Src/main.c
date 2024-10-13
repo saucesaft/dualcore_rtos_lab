@@ -71,6 +71,8 @@ ETH_TxPacketConfig TxConfig;
 
 ETH_HandleTypeDef heth;
 
+TIM_HandleTypeDef htim17;
+
 UART_HandleTypeDef huart3;
 
 PCD_HandleTypeDef hpcd_USB_OTG_FS;
@@ -79,7 +81,7 @@ PCD_HandleTypeDef hpcd_USB_OTG_FS;
 osThreadId_t defaultTaskHandle;
 const osThreadAttr_t defaultTask_attributes = {
   .name = "defaultTask",
-  .stack_size = 128 * 4,
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* USER CODE BEGIN PV */
@@ -92,6 +94,7 @@ static void MX_GPIO_Init(void);
 static void MX_ETH_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_USB_OTG_FS_PCD_Init(void);
+static void MX_TIM17_Init(void);
 void StartDefaultTask(void *argument);
 
 /* USER CODE BEGIN PFP */
@@ -165,6 +168,7 @@ Error_Handler();
   MX_ETH_Init();
   MX_USART3_UART_Init();
   MX_USB_OTG_FS_PCD_Init();
+  MX_TIM17_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -207,6 +211,7 @@ Error_Handler();
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+
   while (1)
   {
     /* USER CODE END WHILE */
@@ -320,6 +325,38 @@ static void MX_ETH_Init(void)
   /* USER CODE BEGIN ETH_Init 2 */
 
   /* USER CODE END ETH_Init 2 */
+
+}
+
+/**
+  * @brief TIM17 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM17_Init(void)
+{
+
+  /* USER CODE BEGIN TIM17_Init 0 */
+
+  /* USER CODE END TIM17_Init 0 */
+
+  /* USER CODE BEGIN TIM17_Init 1 */
+
+  /* USER CODE END TIM17_Init 1 */
+  htim17.Instance = TIM17;
+  htim17.Init.Prescaler = 65535;
+  htim17.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim17.Init.Period = 65535;
+  htim17.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim17.Init.RepetitionCounter = 0;
+  htim17.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim17) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM17_Init 2 */
+
+  /* USER CODE END TIM17_Init 2 */
 
 }
 
@@ -454,11 +491,30 @@ static void MX_GPIO_Init(void)
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
+
+  long cantidadIntervalos = 10000000;
+  HAL_TIM_Base_Start(&htim17);
+
+  double acum = 0;
+
+	double fdx, x, i, elapsed;
+	double baseIntervalo = 1.0 / cantidadIntervalos;
+
+  uint16_t start_t = __HAL_TIM_GET_COUNTER(&htim17);
+	for (i = 0, x = 0.0; i < cantidadIntervalos; i++) {
+		fdx = 4 / (1 + x * x);
+		acum = acum + (fdx * baseIntervalo);
+		x = x + baseIntervalo;
+	}
+  uint16_t end_t = __HAL_TIM_GET_COUNTER(&htim17);
+
+  printf("Resultado=%f (%f seconds)\r\n", acum, ((float)(end_t - start_t) * 65535.0)/240000000.0);
+
   /* Infinite loop */
   for(;;)
   {
-    printf("Hello FreeRTOS STM32H7 World! from Team %d\n\r", 5);
-    HAL_GPIO_TogglePin(LD1_GPIO_Port, LD1_Pin);
+    // printf("Hello FreeRTOS STM32H7 World! from Team %d\n\r", 5);
+    // HAL_GPIO_TogglePin(LD1_GPIO_Port, LD1_Pin);
     osDelay(400);
   }
   /* USER CODE END 5 */
