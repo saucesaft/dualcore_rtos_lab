@@ -71,6 +71,8 @@ ETH_TxPacketConfig TxConfig;
 
 ETH_HandleTypeDef heth;
 
+TIM_HandleTypeDef htim16;
+
 UART_HandleTypeDef huart3;
 
 /* Definitions for defaultTask */
@@ -81,11 +83,20 @@ const osThreadAttr_t defaultTask_attributes = {
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* USER CODE BEGIN PV */
+typedef struct
+{
+	volatile double acum;
+  volatile float time_cm4;
+  volatile float time_cm7;
+  volatile osMutexId_t ctrl;
+} intercore_data;
 
+#define INTER ((intercore_data *)0x30000000)
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 static void MX_GPIO_Init(void);
+static void MX_TIM16_Init(void);
 void StartDefaultTask(void *argument);
 
 /* USER CODE BEGIN PFP */
@@ -142,6 +153,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_TIM16_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -243,6 +255,38 @@ void MX_ETH_Init(void)
 }
 
 /**
+  * @brief TIM16 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM16_Init(void)
+{
+
+  /* USER CODE BEGIN TIM16_Init 0 */
+
+  /* USER CODE END TIM16_Init 0 */
+
+  /* USER CODE BEGIN TIM16_Init 1 */
+
+  /* USER CODE END TIM16_Init 1 */
+  htim16.Instance = TIM16;
+  htim16.Init.Prescaler = 65535;
+  htim16.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim16.Init.Period = 65535;
+  htim16.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim16.Init.RepetitionCounter = 0;
+  htim16.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim16) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM16_Init 2 */
+
+  /* USER CODE END TIM16_Init 2 */
+
+}
+
+/**
   * @brief USART3 Initialization Function
   * @param None
   * @retval None
@@ -332,11 +376,44 @@ static void MX_GPIO_Init(void)
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
+  INTER->time_cm4 = 0;
+  double acum_l = 0;
+  float porcion_cm4 = 0.1;
+  long cantidadIntervalos = 10000000 * porcion_cm4;
+
+  INTER->ctrl = osMutexNew( NULL );
+
+  osMutexAcquire(INTER->ctrl, osWaitForever);
+
+  HAL_TIM_Base_Start(&htim16);
+
+	double fdx, x, i;
+	double baseIntervalo = 1.0 / cantidadIntervalos;
+
+  long tid = 0;
+  long start = tid * (cantidadIntervalos / 2);
+  long end = (tid + 1) * (cantidadIntervalos / 2);
+
+  uint16_t start_t = __HAL_TIM_GET_COUNTER(&htim16);
+  x = baseIntervalo * start;
+	for (i = start; i < end; i++) {
+		fdx = 4 / (1 + x * x);
+		acum_l = acum_l + (fdx * baseIntervalo);
+		x = x + baseIntervalo;
+    HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+	}
+  uint16_t end_t = __HAL_TIM_GET_COUNTER(&htim16);
+
+  INTER->time_cm4 = ((float)(end_t - start_t) * 65535.0)/240000000.0;
+  
+  INTER->acum += acum_l;
+
+  osMutexRelease(INTER->ctrl);
+
   /* Infinite loop */
   for(;;)
   {
-    HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
-    osDelay(400);
+    osDelay(10);
   }
   /* USER CODE END 5 */
 }

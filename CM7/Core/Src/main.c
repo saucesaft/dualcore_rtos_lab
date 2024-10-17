@@ -85,7 +85,15 @@ const osThreadAttr_t defaultTask_attributes = {
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* USER CODE BEGIN PV */
+typedef struct
+{
+	volatile double acum;
+  volatile float time_cm4;
+  volatile float time_cm7;
+  volatile osMutexId_t ctrl;
+} intercore_data;
 
+#define INTER ((intercore_data *)0x30000000)
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -170,7 +178,7 @@ Error_Handler();
   MX_USB_OTG_FS_PCD_Init();
   MX_TIM17_Init();
   /* USER CODE BEGIN 2 */
-
+  INTER->acum = 0;
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -491,31 +499,43 @@ static void MX_GPIO_Init(void)
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
-
-  long cantidadIntervalos = 10000000;
+  osDelay(100);
+  double acum_l = 0;
+  float porcion_cm7 = 0.90;
+  long cantidadIntervalos = 10000000 * porcion_cm7;
   HAL_TIM_Base_Start(&htim17);
 
-  double acum = 0;
-
-	double fdx, x, i, elapsed;
+	double fdx, x, i;
 	double baseIntervalo = 1.0 / cantidadIntervalos;
+  
+  long tid = 0;
+  long start = tid * (cantidadIntervalos / 2);
+  long end = (tid + 1) * (cantidadIntervalos / 2);
 
   uint16_t start_t = __HAL_TIM_GET_COUNTER(&htim17);
-	for (i = 0, x = 0.0; i < cantidadIntervalos; i++) {
+  x = baseIntervalo * start;
+	for (i = start; i < end; i++) {
 		fdx = 4 / (1 + x * x);
-		acum = acum + (fdx * baseIntervalo);
+		acum_l = acum_l + (fdx * baseIntervalo);
 		x = x + baseIntervalo;
+    HAL_GPIO_TogglePin(LD1_GPIO_Port, LD1_Pin);
 	}
   uint16_t end_t = __HAL_TIM_GET_COUNTER(&htim17);
 
-  printf("Resultado=%f (%f seconds)\r\n", acum, ((float)(end_t - start_t) * 65535.0)/240000000.0);
+  INTER->acum += acum_l;
+
+  osMutexAcquire(INTER->ctrl, osWaitForever);
+
+  INTER->time_cm7 = ((float)(end_t - start_t) * 65535.0)/240000000.0;
+
+  printf("pi=%f (cm7=%f min) (cm4=%f min) (total=%f min) \r\n", INTER->acum, INTER->time_cm7, INTER->time_cm4, INTER->time_cm7+INTER->time_cm4);
+
+  osMutexRelease(INTER->ctrl);
 
   /* Infinite loop */
   for(;;)
   {
-    // printf("Hello FreeRTOS STM32H7 World! from Team %d\n\r", 5);
-    // HAL_GPIO_TogglePin(LD1_GPIO_Port, LD1_Pin);
-    osDelay(400);
+    osDelay(10);
   }
   /* USER CODE END 5 */
 }
