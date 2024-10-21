@@ -508,7 +508,7 @@ void StartDefaultTask(void *argument)
 	}
   uint16_t end_t = __HAL_TIM_GET_COUNTER(&htim17);
 
-  printf("Resultado=%f (%f seconds)\r\n", acum, ((float)(end_t - start_t) * 65535.0)/240000000.0);
+  printf("pi=%f [%fs]\r\n", acum, ((float)(end_t - start_t) * 65535.0)/75000000.0);
 
   /* Infinite loop */
   for(;;)
