@@ -24,6 +24,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
+#include <stdbool.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -88,7 +89,7 @@ typedef struct
 	volatile double acum;
   volatile float time_cm4;
   volatile float time_cm7;
-  volatile osMutexId_t ctrl;
+  volatile osMessageQueueId_t ctrl;
 } intercore_data;
 
 #define INTER ((intercore_data *)0x30000000)
@@ -378,41 +379,39 @@ void StartDefaultTask(void *argument)
   /* USER CODE BEGIN 5 */
   INTER->time_cm4 = 0;
   double acum_l = 0;
-  float porcion_cm4 = 0.1;
+  float porcion_cm4 = 0.07;
   long cantidadIntervalos = 10000000 * porcion_cm4;
 
-  INTER->ctrl = osMutexNew( NULL );
-
-  osMutexAcquire(INTER->ctrl, osWaitForever);
+  INTER->ctrl = osMessageQueueNew(10, 1, NULL);
 
   HAL_TIM_Base_Start(&htim16);
 
 	double fdx, x, i;
 	double baseIntervalo = 1.0 / cantidadIntervalos;
 
-  long tid = 0;
+  long tid = 1;
   long start = tid * (cantidadIntervalos / 2);
   long end = (tid + 1) * (cantidadIntervalos / 2);
 
+  HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);
   uint16_t start_t = __HAL_TIM_GET_COUNTER(&htim16);
   x = baseIntervalo * start;
 	for (i = start; i < end; i++) {
 		fdx = 4 / (1 + x * x);
 		acum_l = acum_l + (fdx * baseIntervalo);
 		x = x + baseIntervalo;
-    HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
 	}
   uint16_t end_t = __HAL_TIM_GET_COUNTER(&htim16);
+  HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
 
-  INTER->time_cm4 = ((float)(end_t - start_t) * 65535.0)/240000000.0;
+  INTER->time_cm4 = ((float)(end_t - start_t) * 65535.0)/75000000.0;
   
   INTER->acum += acum_l;
-
-  osMutexRelease(INTER->ctrl);
 
   /* Infinite loop */
   for(;;)
   {
+    osMessageQueuePut(INTER->ctrl, 1, 0, 0);
     osDelay(10);
   }
   /* USER CODE END 5 */
